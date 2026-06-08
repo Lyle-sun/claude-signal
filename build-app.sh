@@ -2,16 +2,23 @@
 set -e
 
 APP_NAME="ClaudeSignal.app"
-BUILD_DIR=".build/release"
+BUILD_DIR=".build/arm64-apple-macosx/release"
 APP_BUNDLE=".build/$APP_NAME"
 
 echo "Building release..."
 swift build -c release
 
 echo "Creating app bundle..."
+rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$BUILD_DIR/ClaudeSignal" "$APP_BUNDLE/Contents/MacOS/"
+
+# 复制图标资源
+RESOURCES_SRC="Sources/ClaudeSignal/Resources"
+if [ -d "$RESOURCES_SRC" ]; then
+    cp "$RESOURCES_SRC"/*.png "$APP_BUNDLE/Contents/Resources/"
+fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -26,7 +33,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
 	<string>Claude Signal</string>
 	<key>CFBundleVersion</key>
 	<string>1.0.0</string>
-	<key>CFBundleShortVersionString</key>
+	<key>CFBundleShortVersionString</string>
 	<string>1.0.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>

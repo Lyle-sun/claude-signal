@@ -7,8 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let soundPlayer = SoundPlayer()
     private let terminalActivator = TerminalActivator()
     private var timer: Timer?
-    private var pulseTimer: Timer?
-    private var isPulseOn = true
+    private var lastAnimatedState: SignalState?
+    private var beaconLayer: CALayer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -16,10 +16,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 创建菜单栏图标
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
-        button.image = coloredDot(color: SignalState.idle.nsColor, size: 14)
+        button.wantsLayer = true
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = "Claude Signal"
+
+        // 创建灯泡子图层（叠在塔身 image 上方，只动画这一层）
+        let beacon = CALayer()
+        beacon.contentsGravity = .resizeAspect
+        beacon.masksToBounds = false
+        button.layer?.addSublayer(beacon)
+        beaconLayer = beacon
 
         // 首次刷新
         aggregator.refresh()
@@ -37,7 +44,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
-        pulseTimer?.invalidate()
     }
 
     // MARK: - Icon Update
@@ -46,20 +52,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state = aggregator.globalState
         guard let button = statusItem.button else { return }
 
-        button.image = coloredDot(color: state.nsColor, size: 14)
+        // 塔身 = 按钮 image（不动）
+        button.image = towerImage(for: state)
         button.toolTip = "Claude Signal — \(state.description)"
+
+        // 灯泡 = 子图层（动画）
+        if let beacon = beaconLayer {
+            beacon.frame = button.layer?.bounds ?? .zero
+            beacon.contents = beaconImage(for: state)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            beacon.opacity = 1.0
+        }
 
         // 菜单在打开时实时构建
         statusItem.menu = buildMenu()
 
-        updatePulseAnimation(for: state)
+        // 只在状态变化时更新动画
+        if state != lastAnimatedState {
+            updatePulseAnimation(for: state)
+            lastAnimatedState = state
+        }
     }
 
-    /// 手动绘制彩色圆点（isTemplate=false 保留真实颜色）
-    private func coloredDot(color: NSColor, size: CGFloat) -> NSImage {
+    // MARK: - Image Loading
+
+    /// 加载塔身图片（白色/模板，不含灯泡）
+    private func towerImage(for state: SignalState) -> NSImage {
+        let isTemplate = (state == .idle || state == .error)
+        let name = isTemplate ? "tower_template" : "tower"
+
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            img.isTemplate = isTemplate
+            return img
+        }
+
+        let devPath = "/Users/lyle/Desktop/Projects/claude-signal/Sources/ClaudeSignal/Resources/\(name)_2x.png"
+        if let img = NSImage(contentsOf: URL(fileURLWithPath: devPath)) {
+            img.isTemplate = isTemplate
+            return img
+        }
+
+        return simpleDot(color: state.nsColor, size: 18)
+    }
+
+    /// 加载灯泡图片（状态色，只有灯泡+光芒+光晕）
+    private func beaconImage(for state: SignalState) -> NSImage? {
+        let beaconName: String
+        switch state {
+        case .idle:       beaconName = "beacon_idle"
+        case .running:    beaconName = "beacon_running"
+        case .confirming: beaconName = "beacon_confirming"
+        case .warning:    beaconName = "beacon_warning"
+        case .critical:   beaconName = "beacon_critical"
+        case .error:      beaconName = "beacon_error"
+        }
+
+        if let url = Bundle.main.url(forResource: beaconName, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+
+        let devPath = "/Users/lyle/Desktop/Projects/claude-signal/Sources/ClaudeSignal/Resources/\(beaconName)_2x.png"
+        if let img = NSImage(contentsOf: URL(fileURLWithPath: devPath)) {
+            return img
+        }
+
+        return nil
+    }
+
+    /// Fallback: 纯色圆点
+    private func simpleDot(color: NSColor, size: CGFloat) -> NSImage {
         let img = NSImage(size: NSSize(width: size, height: size))
         img.lockFocus()
-        let circle = NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: size - 2, height: size - 2))
+        let circle = NSBezierPath(ovalIn: NSRect(x: 3, y: 3, width: size - 6, height: size - 6))
         color.setFill()
         circle.fill()
         img.unlockFocus()
@@ -67,21 +132,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return img
     }
 
-    // MARK: - Pulse Animation
+    // MARK: - Pulse Animation (只动画灯泡图层)
 
     private func updatePulseAnimation(for state: SignalState) {
-        pulseTimer?.invalidate()
-        pulseTimer = nil
-        isPulseOn = true
+        guard let beacon = beaconLayer else { return }
 
-        guard state.needsAction else { return }
+        // 先移除旧动画
+        beacon.removeAnimation(forKey: "pulse")
 
-        let fullColor = state.nsColor
-        let dimColor = fullColor.withAlphaComponent(0.3)
-        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
-            guard let self, let button = self.statusItem.button else { return }
-            self.isPulseOn.toggle()
-            button.image = self.coloredDot(color: self.isPulseOn ? fullColor : dimColor, size: 14)
+        switch state {
+        case .running:
+            // 灯塔呼吸：只有灯泡层在闪，塔身不动
+            let pulse = CABasicAnimation(keyPath: "opacity")
+            pulse.fromValue = 1.0
+            pulse.toValue = 0.2
+            pulse.duration = 1.8
+            pulse.autoreverses = true
+            pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            beacon.add(pulse, forKey: "pulse")
+
+        case .confirming, .critical:
+            // 急促闪烁：灯泡快速明灭
+            let pulse = CABasicAnimation(keyPath: "opacity")
+            pulse.fromValue = 1.0
+            pulse.toValue = 0.05
+            pulse.duration = 0.6
+            pulse.autoreverses = true
+            pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            beacon.add(pulse, forKey: "pulse")
+
+        default:
+            // 静态，灯泡常亮
+            beacon.opacity = 1.0
         }
     }
 

@@ -54,12 +54,12 @@ enum SignalState: Int, Comparable {
     /// NSColor 版本（菜单栏图标用）
     var nsColor: NSColor {
         switch self {
-        case .idle:        return NSColor.white.withAlphaComponent(0.35)
+        case .idle:        return NSColor(calibratedRed: 0.92, green: 0.89, blue: 0.85, alpha: 0.63)
         case .running:     return NSColor.systemGreen
         case .confirming:  return NSColor.systemRed
         case .warning:     return NSColor.systemYellow
-        case .critical:    return NSColor.systemRed
-        case .error:       return NSColor.systemGray
+        case .critical:    return NSColor.systemPurple
+        case .error:       return NSColor(calibratedRed: 0.92, green: 0.89, blue: 0.85, alpha: 0.63)
         }
     }
 
