@@ -17,7 +17,7 @@ final class SessionMonitor {
     /// 获取所有活跃的 Claude Code 会话
     func fetchSessions() -> [SessionInfo] {
         guard FileManager.default.fileExists(atPath: sessionsDir.path) else {
-            logger.info("Sessions directory not found: \(self.sessionsDir.path)")
+            logger.info("Sessions directory not found")
             return []
         }
 
@@ -59,7 +59,7 @@ final class SessionMonitor {
                 isStale: !isAlive
             )
         }
-        .filter { !$0.isStale }  // 过滤掉僵尸会话
+        .filter { !$0.isStale }
     }
 
     /// 检查 ~/.claude/ 目录是否存在

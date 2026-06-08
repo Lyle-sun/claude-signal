@@ -57,4 +57,16 @@ enum SignalState: Int, Comparable {
     var needsAction: Bool {
         self == .confirming || self == .critical
     }
+
+    /// 菜单栏 emoji 图标（macOS 暗色模式下 NSStatusBarButton 强制 template 渲染，自定义颜色不生效，用 emoji 替代）
+    var emoji: String {
+        switch self {
+        case .idle:        return "⚪"
+        case .running:     return "🟢"
+        case .confirming:  return "🔴"
+        case .warning:     return "🟡"
+        case .critical:    return "🔴"
+        case .error:       return "⚠️"
+        }
+    }
 }

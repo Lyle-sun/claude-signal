@@ -4,9 +4,10 @@ macOS 菜单栏红绿灯状态监控，监控 Claude Code 会话状态和 contex
 
 ## 技术栈
 
-- 语言：Swift 5.9+ / SwiftUI
+- 语言：Swift 5.9+ / 纯 AppKit（不用 SwiftUI）
 - 最低支持：macOS 13 (Ventura)
 - 无外部依赖，纯系统框架
+- 构建：SPM + build-app.sh 生成 .app bundle
 
 ## 项目结构
 
@@ -15,45 +16,66 @@ claude-signal/
 ├── CLAUDE.md              # 本文件
 ├── README.md
 ├── .gitignore
+├── Package.swift           # SPM 配置
+├── build-app.sh            # 构建 .app bundle + ad-hoc 签名
 ├── docs/
-│   └── design.md          # 完整设计文档（架构、信号源、视觉规范）
-├── ClaudeSignal/          # Xcode 项目源码
-│   ├── ClaudeSignalApp.swift    # App 入口 + MenuBarExtra
-│   ├── Models/                  # 数据模型（SignalState, SessionInfo）
-│   ├── Services/                # 监控服务（SessionMonitor, ContextMonitor）
-│   ├── Views/                   # SwiftUI 视图（MenuBarView, PopoverView）
-│   └── Helpers/                 # 工具类（TerminalActivator, SoundPlayer）
-└── ClaudeSignal.xcodeproj/
+│   └── design.md           # 完整设计文档（架构、信号源、视觉规范）
+└── Sources/ClaudeSignal/
+    ├── main.swift               # 程序入口：手动设置 NSApplication delegate
+    ├── ClaudeSignalApp.swift    # AppDelegate：菜单栏图标、定时刷新、菜单
+    ├── Models/
+    │   ├── SignalState.swift    # 信号状态枚举（idle/running/confirming/warning/critical/error）
+    │   └── SessionInfo.swift    # 会话信息模型（含 context 计算、状态推导）
+    ├── Services/
+    │   ├── SessionMonitor.swift     # 读取 ~/.claude/sessions/ + 僵尸检测
+    │   ├── ContextMonitor.swift     # 读取 jsonl 获取 token 用量
+    │   └── SignalAggregator.swift   # 聚合多个会话状态 → 全局状态
+    └── Helpers/
+        ├── SoundPlayer.swift        # 声音提醒（含静音、per-session 冷却）
+        └── TerminalActivator.swift  # AppleScript 激活终端窗口
 ```
 
 ## 构建与运行
 
 ```bash
-# 用 Xcode 打开
-open ClaudeSignal.xcodeproj
+# 开发构建 + 运行
+swift build -c release
+.build/release/ClaudeSignal
 
-# 或命令行构建
-xcodebuild -project ClaudeSignal.xcodeproj -scheme ClaudeSignal -configuration Debug build
+# 生成 .app bundle（构建 + 打包 + 签名）
+bash build-app.sh
+
+# 安装到桌面
+cp -R .build/ClaudeSignal.app ~/Desktop/
+
+# 运行
+open ~/Desktop/ClaudeSignal.app
 ```
+
+## 关键技术决策
+
+1. **纯 AppKit 而非 SwiftUI**：`MenuBarExtra` 的 `label` 不响应 `@Published` 变化，`NSStatusBar` + `NSStatusItem` 可靠
+2. **手动 main.swift 入口**：Swift `@main` 属性在 `AppDelegate` 上不会正确设置 delegate，必须手动 `app.delegate = delegate; app.run()`
+3. **Emoji 图标**：macOS 暗色模式下 `NSStatusBarButton` 强制 template 渲染，SF Symbol 颜色不可控。用 emoji（🟢🔴🟡⚪⚠️）作为图标，颜色 100% 可控
+4. **LSUIElement=true**：隐藏 Dock 图标，仅菜单栏显示
+5. **信号源**：`~/.claude/sessions/{pid}.json`（status + waitingFor）+ jsonl（token 用量）
+6. **僵尸检测**：`kill(pid_t(pid), 0)` 验证进程是否存活
 
 ## 代码规范
 
 - 文件命名：PascalCase，与主要类型名一致
 - Swift 代码风格：遵循 Swift API Design Guidelines
 - 注释密度：公共接口加文档注释，实现细节不强制
-- 状态管理：用 `@Observable`（macOS 14+）/ `@Published` + `ObservableObject`
-- 动画：状态转换统一用 Spring 动画（`response: 0.35, dampingFraction: 0.8`）
 - 日志：用 `os_log`，subsystem 为 `com.claude-signal.app`
-
-## 设计决策记录
-
-所有架构和设计决策见 `docs/design.md`，包括：
-- 信号源设计（session 文件 + 进程检测兜底）
-- 状态模型和聚合优先级
-- 视觉设计规范（SF Symbol、颜色、动画参数）
-- 分阶段交付计划（Phase 1/2/3）
 
 ## 验证
 
-- 改完跑 `xcodebuild build` 确认编译通过
-- 核心逻辑变更时手动验证：启动 App → 检测 Claude Code 会话 → 状态切换 → 声音提醒
+```bash
+# 编译验证
+swift build -c release
+
+# 生成 .app 并验证
+bash build-app.sh && open .build/ClaudeSignal.app
+```
+
+核心逻辑变更时手动验证：启动 App → 检测 Claude Code 会话 → 状态切换 → 声音提醒

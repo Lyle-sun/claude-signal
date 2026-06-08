@@ -25,38 +25,39 @@ macOS 菜单栏红绿灯，监控 Claude Code 会话状态。
 
 ## 安装
 
-下载最新版本 from [Releases](../../releases)，解压后拖入 `/Applications`。
+```bash
+# 从源码构建
+git clone https://github.com/your-username/claude-signal.git
+cd claude-signal
+bash build-app.sh
+
+# 复制到桌面或 Applications
+cp -R .build/ClaudeSignal.app ~/Desktop/
+# 或
+cp -R .build/ClaudeSignal.app /Applications/
+```
 
 首次打开如果被 Gatekeeper 拦截：
 ```bash
-xattr -cr /Applications/ClaudeSignal.app
+xattr -cr ~/Desktop/ClaudeSignal.app
 ```
 
 ## 使用
 
-1. 启动 Claude Signal，菜单栏出现灰灯（无会话状态）
+1. 双击 ClaudeSignal.app，菜单栏出现灰灯（无会话状态）
 2. 在终端启动 Claude Code，灰灯变绿灯
-3. Claude Code 等待确认时，红灯脉冲 + 声音提醒
-4. 点击菜单栏图标查看会话详情
+3. Claude Code 等待确认时，变红灯 + 声音提醒
+4. 点击菜单栏图标查看会话详情、跳转终端
 
 零配置——装上就能用，不需要改 Claude Code 设置。
 
-## 构建从源码
-
-需要 Xcode 15+ 和 macOS 13+ SDK。
-
-```bash
-git clone https://github.com/your-username/claude-signal.git
-cd claude-signal
-open ClaudeSignal.xcodeproj
-```
-
 ## 技术细节
 
-- 纯 Swift/SwiftUI，无外部依赖
+- 纯 Swift / AppKit，无外部依赖
 - 通过读取 `~/.claude/sessions/{pid}.json` 获取会话状态（不依赖 Hooks）
 - 通过读取 `~/.claude/projects/{slug}/{sessionId}.jsonl` 获取 context token 用量
 - `LSUIElement=true` 隐藏 Dock 图标，纯菜单栏 App
+- Emoji 图标绕过 macOS 暗色模式 template 渲染限制
 
 ## License
 
