@@ -2,12 +2,12 @@ import SwiftUI
 
 /// 全局信号状态，优先级：confirming > critical > warning > running > idle > error
 enum SignalState: Int, Comparable {
-    case error = 0       // 检测失败 → 灰灯 xmark.octagon
-    case idle = 1        // 无会话 / session.idle → 灰灯 circle
-    case running = 2     // session.busy → 绿灯 play.fill
-    case warning = 3     // context > 150K → 黄灯 exclamationmark.circle.fill
-    case critical = 4    // context > 200K → 红灯 xmark.circle.fill
-    case confirming = 5  // session.waiting → 红灯 exclamationmark.triangle.fill
+    case error = 0       // 检测失败
+    case idle = 1        // 无会话 / session.idle
+    case running = 2     // session.busy
+    case warning = 3     // context > 150K
+    case critical = 4    // context > 200K
+    case confirming = 5  // session.waiting
 
     // MARK: - Comparable
 
@@ -15,24 +15,34 @@ enum SignalState: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
-    // MARK: - Visual Properties
+    // MARK: - Menu Bar Icon (SF Symbol, template rendering)
 
-    /// SF Symbol 名称
+    /// 菜单栏图标 SF Symbol 名称
     var sfSymbolName: String {
         switch self {
         case .idle:        return "circle"
-        case .running:     return "play.fill"
+        case .running:     return "circle.fill"
         case .confirming:  return "exclamationmark.triangle.fill"
         case .warning:     return "exclamationmark.circle.fill"
         case .critical:    return "xmark.circle.fill"
-        case .error:       return "xmark.octagon"
+        case .error:       return "xmark.octagon.fill"
         }
     }
 
-    /// 图标颜色
+    /// 脉冲动画时的交替图标（仅 confirming 使用）
+    var pulseAlternateSymbol: String? {
+        switch self {
+        case .confirming:  return "exclamationmark.triangle"
+        default:           return nil
+        }
+    }
+
+    // MARK: - Color (for popover use, not menu bar icon)
+
+    /// 状态颜色
     var color: Color {
         switch self {
-        case .idle:        return .gray.opacity(0.4)
+        case .idle:        return .gray.opacity(0.5)
         case .running:     return .green
         case .confirming:  return .red
         case .warning:     return .yellow
@@ -40,6 +50,20 @@ enum SignalState: Int, Comparable {
         case .error:       return .gray
         }
     }
+
+    /// NSColor 版本
+    var nsColor: NSColor {
+        switch self {
+        case .idle:        return .systemGray
+        case .running:     return .systemGreen
+        case .confirming:  return .systemRed
+        case .warning:     return .systemYellow
+        case .critical:    return .systemRed
+        case .error:       return .systemGray
+        }
+    }
+
+    // MARK: - Description
 
     /// 人类可读描述
     var description: String {
@@ -58,7 +82,7 @@ enum SignalState: Int, Comparable {
         self == .confirming || self == .critical
     }
 
-    /// 菜单栏 emoji 图标（macOS 暗色模式下 NSStatusBarButton 强制 template 渲染，自定义颜色不生效，用 emoji 替代）
+    /// Emoji（仅 popover 内使用）
     var emoji: String {
         switch self {
         case .idle:        return "⚪"

@@ -22,10 +22,14 @@ struct SessionInfo: Identifiable {
 
     // MARK: - Computed
 
-    /// 会话显示名：目录名 + PID
+    /// 会话显示名：项目目录名
+    var projectName: String {
+        URL(fileURLWithPath: cwd).lastPathComponent
+    }
+
+    /// 会话显示名（含 PID，仅调试用）
     var displayName: String {
-        let dir = URL(fileURLWithPath: cwd).lastPathComponent
-        return "\(dir) (PID \(pid))"
+        "\(projectName) (PID \(pid))"
     }
 
     /// Context 百分比（基于 200K 阈值）

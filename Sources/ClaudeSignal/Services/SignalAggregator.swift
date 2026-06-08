@@ -7,9 +7,6 @@ final class SignalAggregator: ObservableObject {
     @Published var sessions: [SessionInfo] = []
     @Published var errorMessage: String?
 
-    let soundPlayer = SoundPlayer()
-    let terminalActivator = TerminalActivator()
-
     private let sessionMonitor = SessionMonitor()
     private let contextMonitor = ContextMonitor()
 

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
@@ -6,21 +7,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let soundPlayer = SoundPlayer()
     private let terminalActivator = TerminalActivator()
     private var timer: Timer?
+    private var pulseTimer: Timer?
+    private var isPulseOn = true
+    private var popover: NSPopover?
+    private var popoverVC: NSViewController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         // 创建菜单栏图标
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
         button.target = self
         button.action = #selector(statusItemClicked)
         button.sendAction(on: [.leftMouseUp])
 
+        // 创建 Popover
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentSize = NSSize(width: 320, height: 280)
+        let vc = NSViewController()
+        vc.view = NSView()
+        popover.contentViewController = vc
+        self.popover = popover
+        self.popoverVC = vc
+
         // 首次刷新
         aggregator.refresh()
         updateIcon()
-        rebuildMenu()
+        updatePopoverContent()
 
         // 启动轮询
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
@@ -28,13 +43,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let prev = self.aggregator.globalState
             self.aggregator.refresh()
             self.updateIcon()
-            self.rebuildMenu()
+            self.updatePopoverContent()
             self.handleStateChange(from: prev, to: self.aggregator.globalState)
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
+        pulseTimer?.invalidate()
     }
 
     // MARK: - Icon Update
@@ -43,79 +59,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state = aggregator.globalState
         guard let button = statusItem.button else { return }
 
-        // macOS 暗色模式下 NSStatusBarButton 强制 template 渲染，自定义颜色不生效
-        // 使用 emoji 作为图标，颜色 100% 可控
-        button.title = state.emoji
-        button.image = nil
-        button.font = NSFont.systemFont(ofSize: 15)
-        button.toolTip = state.description
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        if let image = NSImage(systemSymbolName: state.sfSymbolName, accessibilityDescription: state.description)?
+            .withSymbolConfiguration(config) {
+            image.isTemplate = true
+            button.image = image
+            button.imagePosition = .imageOnly
+        }
+        button.imageScaling = .scaleProportionallyDown
+        button.toolTip = "Claude Signal — \(state.description)"
+
+        // confirming / critical 时启动脉冲动画
+        updatePulseAnimation(for: state)
     }
 
-    // MARK: - Menu Rebuild
+    // MARK: - Pulse Animation
 
-    private func rebuildMenu() {
-        let menu = NSMenu()
+    private func updatePulseAnimation(for state: SignalState) {
+        // 停止旧动画
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+        isPulseOn = true
 
-        if aggregator.sessions.isEmpty {
-            if !aggregator.claudeCodeInstalled {
-                menu.addItem(NSMenuItem(title: "Claude Code 未检测到", action: nil, keyEquivalent: ""))
-                menu.addItem(NSMenuItem(title: "请先安装 Claude Code CLI", action: nil, keyEquivalent: ""))
-            } else {
-                menu.addItem(NSMenuItem(title: "无 Claude Code 会话", action: nil, keyEquivalent: ""))
-                menu.addItem(NSMenuItem(title: "启动 Claude Code 后自动检测", action: nil, keyEquivalent: ""))
-            }
-        } else {
-            for session in aggregator.sessions {
-                let item = NSMenuItem()
-                item.title = "\(session.signalState.emoji) \(session.displayName)"
-                item.toolTip = "Context: \(session.contextDescription)"
+        guard state.needsAction, let altSymbol = state.pulseAlternateSymbol else { return }
 
-                let sessionMenu = NSMenu()
-
-                if let waiting = session.waitingFor {
-                    let waitItem = NSMenuItem(title: "等待: \(waiting)", action: nil, keyEquivalent: "")
-                    waitItem.isEnabled = false
-                    sessionMenu.addItem(waitItem)
-                }
-
-                let ctxItem = NSMenuItem(title: "Context: \(session.contextDescription)", action: nil, keyEquivalent: "")
-                ctxItem.isEnabled = false
-                sessionMenu.addItem(ctxItem)
-
-                let jumpItem = NSMenuItem(title: "跳转到终端", action: #selector(jumpToTerminal(_:)), keyEquivalent: "")
-                jumpItem.representedObject = session.pid
-                sessionMenu.addItem(jumpItem)
-
-                item.submenu = sessionMenu
-                menu.addItem(item)
+        // 每 0.8 秒交替图标
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
+            guard let self, let button = self.statusItem.button else { return }
+            self.isPulseOn.toggle()
+            let symbolName = self.isPulseOn ? state.sfSymbolName : altSymbol
+            if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config) {
+                image.isTemplate = true
+                button.image = image
             }
         }
+    }
 
-        menu.addItem(NSMenuItem.separator())
+    // MARK: - Popover
 
-        let muteTitle = soundPlayer.isMuted ? "🔈 取消静音" : "🔇 静音"
-        menu.addItem(NSMenuItem(title: muteTitle, action: #selector(toggleMute), keyEquivalent: ""))
+    private func updatePopoverContent() {
+        guard let popover, let popoverVC else { return }
 
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "退出 Claude Signal", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        let view = PopoverView(
+            sessions: aggregator.sessions,
+            globalState: aggregator.globalState,
+            isMuted: soundPlayer.isMuted,
+            onJump: { [weak self] pid in
+                self?.terminalActivator.activateTerminal(forPID: pid)
+                self?.popover?.performClose(nil)
+            },
+            onToggleMute: { [weak self] in
+                self?.soundPlayer.isMuted.toggle()
+                self?.updatePopoverContent()
+            },
+            onQuit: {
+                NSApp.terminate(nil)
+            }
+        )
 
-        statusItem.menu = menu
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = popoverVC.view.bounds
+        hostingView.autoresizingMask = [.width, .height]
+
+        // 替换内容
+        popoverVC.view.subviews.forEach { $0.removeFromSuperview() }
+        popoverVC.view.addSubview(hostingView)
+
+        // 根据内容调整高度
+        let height = max(200, 80 + aggregator.sessions.count * 90)
+        popover.contentSize = NSSize(width: 320, height: min(height, 500))
     }
 
     // MARK: - Actions
 
     @objc private func statusItemClicked() {
-        rebuildMenu()
-    }
+        guard let button = statusItem.button, let popover else { return }
 
-    @objc private func jumpToTerminal(_ sender: NSMenuItem) {
-        guard let pid = sender.representedObject as? Int else { return }
-        terminalActivator.activateTerminal(forPID: pid)
-    }
-
-    @objc private func toggleMute() {
-        soundPlayer.isMuted.toggle()
-        rebuildMenu()
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 
     // MARK: - State Change
