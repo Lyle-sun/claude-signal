@@ -51,15 +51,15 @@ enum SignalState: Int, Comparable {
         }
     }
 
-    /// NSColor 版本
+    /// NSColor 版本（菜单栏图标用）
     var nsColor: NSColor {
         switch self {
-        case .idle:        return .systemGray
-        case .running:     return .systemGreen
-        case .confirming:  return .systemRed
-        case .warning:     return .systemYellow
-        case .critical:    return .systemRed
-        case .error:       return .systemGray
+        case .idle:        return NSColor.white.withAlphaComponent(0.35)
+        case .running:     return NSColor.systemGreen
+        case .confirming:  return NSColor.systemRed
+        case .warning:     return NSColor.systemYellow
+        case .critical:    return NSColor.systemRed
+        case .error:       return NSColor.systemGray
         }
     }
 

@@ -59,18 +59,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state = aggregator.globalState
         guard let button = statusItem.button else { return }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        if let image = NSImage(systemSymbolName: state.sfSymbolName, accessibilityDescription: state.description)?
-            .withSymbolConfiguration(config) {
-            image.isTemplate = true
-            button.image = image
-            button.imagePosition = .imageOnly
-        }
+        button.image = coloredDot(color: state.nsColor, size: 14)
+        button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = "Claude Signal — \(state.description)"
 
         // confirming / critical 时启动脉冲动画
         updatePulseAnimation(for: state)
+    }
+
+    /// 手动绘制彩色圆点（isTemplate=false 保留真实颜色）
+    private func coloredDot(color: NSColor, size: CGFloat) -> NSImage {
+        let img = NSImage(size: NSSize(width: size, height: size))
+        img.lockFocus()
+        let circle = NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: size - 2, height: size - 2))
+        color.setFill()
+        circle.fill()
+        img.unlockFocus()
+        img.isTemplate = false
+        return img
     }
 
     // MARK: - Pulse Animation
@@ -81,19 +88,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pulseTimer = nil
         isPulseOn = true
 
-        guard state.needsAction, let altSymbol = state.pulseAlternateSymbol else { return }
+        guard state.needsAction else { return }
 
-        // 每 0.8 秒交替图标
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        // 脉冲：在亮色和暗色之间交替
+        let fullColor = state.nsColor
+        let dimColor = fullColor.withAlphaComponent(0.3)
         pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
             guard let self, let button = self.statusItem.button else { return }
             self.isPulseOn.toggle()
-            let symbolName = self.isPulseOn ? state.sfSymbolName : altSymbol
-            if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(config) {
-                image.isTemplate = true
-                button.image = image
-            }
+            button.image = self.coloredDot(color: self.isPulseOn ? fullColor : dimColor, size: 14)
         }
     }
 
