@@ -505,16 +505,13 @@ struct UsageView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    recentSessionHeader
+            VStack(spacing: 0) {
+                recentSessionHeader
+                Divider()
+                ForEach(recentSessions, id: \.sessionId) { session in
+                    recentSessionRow(session)
                     Divider()
-                    ForEach(recentSessions, id: \.sessionId) { session in
-                        recentSessionRow(session)
-                        Divider()
-                    }
                 }
-                .frame(minWidth: 860, alignment: .leading)
             }
         }
         .padding(12)
@@ -528,14 +525,24 @@ struct UsageView: View {
 
     private var recentSessionHeader: some View {
         HStack {
-            Text(language == .chinese ? "时间" : "Time").frame(width: 90, alignment: .leading)
-            Text(language == .chinese ? "项目" : "Project").frame(width: 180, alignment: .leading)
-            Text(language == .chinese ? "模型" : "Model").frame(width: 120, alignment: .leading)
-            Text("Input").frame(width: 80, alignment: .trailing)
-            Text("Output").frame(width: 80, alignment: .trailing)
-            Text(language == .chinese ? "总 Token" : "Tokens").frame(width: 90, alignment: .trailing)
-            Text(language == .chinese ? "费用" : "Cost").frame(width: 80, alignment: .trailing)
-            Text(language == .chinese ? "消息" : "Msgs").frame(width: 52, alignment: .trailing)
+            Text(language == .chinese ? "时间" : "Time")
+                .frame(width: 90, alignment: .leading)
+            Text(language == .chinese ? "项目" : "Project")
+                .frame(minWidth: 80, alignment: .leading)
+            Spacer(minLength: 4)
+            Text(language == .chinese ? "模型" : "Model")
+                .frame(minWidth: 60, alignment: .leading)
+            Spacer(minLength: 4)
+            Text("Input")
+                .frame(width: 72, alignment: .trailing)
+            Text("Output")
+                .frame(width: 72, alignment: .trailing)
+            Text(language == .chinese ? "总 Token" : "Tokens")
+                .frame(width: 80, alignment: .trailing)
+            Text(language == .chinese ? "费用" : "Cost")
+                .frame(width: 72, alignment: .trailing)
+            Text(language == .chinese ? "消息" : "Msgs")
+                .frame(width: 44, alignment: .trailing)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -548,23 +555,25 @@ struct UsageView: View {
                 .frame(width: 90, alignment: .leading)
             Text(slugToName(session.projectSlug))
                 .lineLimit(1)
-                .frame(width: 180, alignment: .leading)
+                .frame(minWidth: 80, alignment: .leading)
+            Spacer(minLength: 4)
             Text(session.model)
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
+                .frame(minWidth: 60, alignment: .leading)
+            Spacer(minLength: 4)
             Text(formatTokens(session.inputTokens))
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
             Text(formatTokens(session.outputTokens))
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
             Text(formatTokens(session.totalTokens))
                 .fontWeight(.semibold)
                 .foregroundStyle(.teal)
-                .frame(width: 90, alignment: .trailing)
-            Text(formatCost(session.cost.totalCost))
                 .frame(width: 80, alignment: .trailing)
+            Text(formatCost(session.cost.totalCost))
+                .frame(width: 72, alignment: .trailing)
             Text("\(session.messageCount)")
-                .frame(width: 52, alignment: .trailing)
+                .frame(width: 44, alignment: .trailing)
         }
         .font(.subheadline)
         .monospacedDigit()
