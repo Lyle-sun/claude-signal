@@ -77,36 +77,6 @@ cp -R .build/ClaudeSignal.app /Applications/
 
 零配置——装上就能用。
 
-## 技术细节
-
-- **纯 Swift / AppKit + SwiftUI**，无外部依赖
-- **灯塔两层渲染**：塔身 = NSStatusItem image（静态），灯泡 = CALayer 子图层（动画）
-- **仪表盘**：SwiftUI 视图通过 NSHostingView 嵌入 NSWindow
-- **数据源**：读取 `~/.claude/sessions/{pid}.json` 获取会话状态，tail-read jsonl 获取实时 Context
-- **用量分析**：SQLite3（WAL 模式）存储历史数据，增量索引器后台解析 jsonl
-- **成本计算**：硬编码定价表 + 前缀匹配，未知模型成本 $0
-- **Protocol + DI** 架构，预留多 AI 源（Codex 等）扩展接口
-- **LSUIElement=true** 隐藏 Dock 图标，纯菜单栏 App
-- **中英双语**：仪表盘支持中文/英文切换
-
-## 项目结构
-
-```
-claude-signal/
-├── Sources/ClaudeSignal/           # 可执行目标（main.swift + 灯塔图标资源）
-├── Sources/ClaudeSignalKit/        # 核心逻辑库
-│   ├── AppDelegate.swift           # 编排层
-│   ├── LighthouseController.swift  # 灯塔：图标+动画+状态+声音+右键菜单
-│   ├── Models/                     # SignalState, SessionInfo, ModelPricing
-│   ├── Protocols/                  # SessionSource, SessionMonitoring, ...
-│   ├── Services/                   # SQLite, Indexer, UsageStore, ...
-│   ├── Dashboard/                  # SwiftUI 仪表盘视图
-│   └── Helpers/                    # SoundPlayer, TerminalActivator
-├── Tests/                          # 轻量 assert runner（无 XCTest 依赖）
-├── Package.swift                   # SPM 配置
-└── build-app.sh                    # 构建 .app bundle
-```
-
 ## License
 
 MIT
