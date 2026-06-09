@@ -2,11 +2,14 @@ import Foundation
 import os.log
 
 /// 监控 ~/.claude/sessions/ 目录，读取会话状态
-final class SessionMonitor {
+final class SessionMonitor: SessionMonitoring {
     private let logger = Logger(subsystem: "com.claude-signal.app", category: "SessionMonitor")
 
-    private var claudeDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+    /// Claude Code 数据根目录（可注入，默认 ~/.claude）
+    let claudeDir: URL
+
+    init(claudeDir: URL? = nil) {
+        self.claudeDir = claudeDir ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude")
     }
 
@@ -56,14 +59,16 @@ final class SessionMonitor {
                 waitingFor: sessionFile.waitingFor,
                 contextTokens: 0,
                 lastKnownTokens: nil,
-                isStale: !isAlive
+                isStale: !isAlive,
+                sessionName: sessionFile.name,
+                startedAt: sessionFile.startedAt.map { Date(timeIntervalSince1970: Double($0) / 1000) }
             )
         }
         .filter { !$0.isStale }
     }
 
     /// 检查 ~/.claude/ 目录是否存在
-    var claudeDirExists: Bool {
+    var isInstalled: Bool {
         FileManager.default.fileExists(atPath: claudeDir.path)
     }
 }
