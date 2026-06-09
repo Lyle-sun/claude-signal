@@ -51,6 +51,36 @@ doTestCwdToSlug: do {
     assertEqual(monitor.cwdToSlug(""), "", "empty path")
 }
 
+doTestContextMonitorResolvesJsonlBySessionId: do {
+    let tempRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("claude-signal-context-\(UUID().uuidString)")
+    let projectDir = tempRoot
+        .appendingPathComponent("projects")
+        .appendingPathComponent("-Users-lyle-Desktop-Project.with.dots")
+    try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+    let sessionId = "session-fallback-1"
+    let cwd = "/Users/lyle/Desktop/Project.with.dots"
+    let jsonl = projectDir.appendingPathComponent("\(sessionId).jsonl")
+    let content = """
+    {"type":"user","sessionId":"\(sessionId)","cwd":"\(cwd)","message":{}}
+    {"type":"assistant","sessionId":"\(sessionId)","cwd":"\(cwd)","message":{"model":"glm-5.1","usage":{"input_tokens":1234,"output_tokens":56,"cache_read_input_tokens":7000}}}
+    """
+    try content.write(to: jsonl, atomically: true, encoding: .utf8)
+
+    let monitor = ContextMonitor(claudeDir: tempRoot)
+    let resolved = monitor.resolveJsonlPath(sessionId: sessionId, cwd: cwd)
+    assertEqual(resolved?.path, jsonl.path, "resolve jsonl without trusting cwd slug")
+
+    let snapshot = monitor.fetchLatestUsageSnapshot(sessionId: sessionId, cwd: cwd)
+    assertEqual(snapshot?.inputTokens, 1234, "snapshot input from resolved jsonl")
+    assertEqual(snapshot?.outputTokens, 56, "snapshot output from resolved jsonl")
+    assertEqual(snapshot?.cacheReadTokens, 7000, "snapshot cache from resolved jsonl")
+    assertEqual(snapshot?.model, "glm-5.1", "snapshot model from resolved jsonl")
+
+    try? FileManager.default.removeItem(at: tempRoot)
+}
+
 // MARK: - SignalState Priority
 
 doTestSignalStatePriority: do {

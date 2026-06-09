@@ -4,7 +4,6 @@ import SwiftUI
 @MainActor
 struct DashboardView: View {
     @ObservedObject var aggregator: SignalAggregator
-    let terminalActivator: TerminalActivating
     let usageStore: UsageStore?
 
     @State private var selectedTab: Tab = .sessions
@@ -133,7 +132,7 @@ struct DashboardView: View {
 
             // 会话列表
             List(aggregator.sessions.sorted(by: sessionSortOrder)) { session in
-                SessionCardView(session: session, terminalActivator: terminalActivator)
+                SessionCardView(session: session)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12))
                     .listRowBackground(Color.clear)

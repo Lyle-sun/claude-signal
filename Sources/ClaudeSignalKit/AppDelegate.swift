@@ -4,7 +4,6 @@ import AppKit
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let aggregator = SignalAggregator()
     private let soundPlayer = SoundPlayer()
-    private let terminalActivator = TerminalActivator()
     private var lighthouse: LighthouseController?
     private var timer: Timer?
     private let indexerCoordinator = IndexerCoordinator()
@@ -23,8 +22,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // 创建灯塔控制器
         lighthouse = LighthouseController(
             aggregator: aggregator,
-            soundPlayer: soundPlayer,
-            terminalActivator: terminalActivator
+            soundPlayer: soundPlayer
         )
         lighthouse?.setupStatusItem()
 
@@ -38,7 +36,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 DashboardWindowController.shared.openWindow(
                     with: self.aggregator,
-                    terminalActivator: self.terminalActivator,
                     usageStore: self.indexerCoordinator.usageStore
                 )
             }

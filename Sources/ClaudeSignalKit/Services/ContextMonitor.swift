@@ -37,17 +37,49 @@ final public class ContextMonitor: ContextMonitoring {
     }
 
     /// 获取最后一轮 assistant usage 快照，用于会话卡片展示本轮 token 与模型。
-    func fetchLatestUsageSnapshot(sessionId: String, cwd: String) -> UsageSnapshot? {
-        let slug = cwdToSlug(cwd)
-        let jsonlPath = projectsDir
-            .appendingPathComponent(slug)
-            .appendingPathComponent("\(sessionId).jsonl")
-
-        guard FileManager.default.fileExists(atPath: jsonlPath.path) else {
-            logger.debug("JSONL not found: \(jsonlPath.path)")
+    public func fetchLatestUsageSnapshot(sessionId: String, cwd: String) -> UsageSnapshot? {
+        guard let jsonlPath = resolveJsonlPath(sessionId: sessionId, cwd: cwd) else {
+            logger.debug("JSONL not found for session \(sessionId, privacy: .public)")
             return nil
         }
 
+        return fetchLatestUsageSnapshot(from: jsonlPath)
+    }
+
+    /// 尽量直接定位 jsonl；slug 只作为 fast path，失败后按 sessionId 反查 projects 下的文件。
+    public func resolveJsonlPath(sessionId: String, cwd: String) -> URL? {
+        let fastPath = projectsDir
+            .appendingPathComponent(cwdToSlug(cwd))
+            .appendingPathComponent("\(sessionId).jsonl")
+
+        if FileManager.default.fileExists(atPath: fastPath.path) {
+            return fastPath
+        }
+
+        guard let projectDirs = try? FileManager.default.contentsOfDirectory(
+            at: projectsDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        let candidates = projectDirs.compactMap { projectDir -> URL? in
+            let values = try? projectDir.resourceValues(forKeys: [.isDirectoryKey])
+            guard values?.isDirectory == true else { return nil }
+            let candidate = projectDir.appendingPathComponent("\(sessionId).jsonl")
+            return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+        }
+
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 { return candidates[0] }
+
+        return candidates.first { jsonlPath in
+            jsonlContainsCwd(jsonlPath, cwd: cwd)
+        } ?? candidates[0]
+    }
+
+    private func fetchLatestUsageSnapshot(from jsonlPath: URL) -> UsageSnapshot? {
         // 使用 tail-read：只读取文件末尾部分，避免全量加载大文件
         guard let fileHandle = try? FileHandle(forReadingFrom: jsonlPath) else {
             logger.warning("Failed to open JSONL: \(jsonlPath.lastPathComponent)")
@@ -84,6 +116,34 @@ final public class ContextMonitor: ContextMonitoring {
         return nil
     }
 
+    private func jsonlContainsCwd(_ jsonlPath: URL, cwd: String) -> Bool {
+        guard let fileHandle = try? FileHandle(forReadingFrom: jsonlPath) else {
+            return false
+        }
+        defer { try? fileHandle.close() }
+
+        guard let data = try? fileHandle.read(upToCount: 128 * 1024),
+              let content = String(data: data, encoding: .utf8) else {
+            return false
+        }
+
+        var found = false
+        content.enumerateLines { line, stop in
+            guard !line.isEmpty,
+                  line.count <= self.maxLineLength,
+                  let data = line.data(using: .utf8),
+                  let record = try? JSONDecoder().decode(ClaudeCodeJsonlRecord.self, from: data) else {
+                return
+            }
+
+            if record.cwd == cwd {
+                found = true
+                stop = true
+            }
+        }
+        return found
+    }
+
     /// 将 cwd 转换为 projects 目录下的 slug 格式
     /// /Users/lyle/Desktop/Projects → -Users-lyle-Desktop-Projects
     /// 注意：此算法必须与 Claude Code 的 slug 算法一致
@@ -100,20 +160,20 @@ final public class ContextMonitor: ContextMonitoring {
 
     /// 从 jsonl 内容解析最后一条 assistant 消息的 usage 快照
     private func parseLastUsageSnapshot(from content: String) -> UsageSnapshot? {
-        var lastUsage: UsageData?
+        var lastUsage: ClaudeCodeJsonlUsage?
         var lastModel: String?
 
         content.enumerateLines { line, _ in
             guard !line.isEmpty,
                   line.count <= self.maxLineLength,
                   let data = line.data(using: .utf8),
-                  let message = try? JSONDecoder().decode(JsonlMessage.self, from: data),
-                  message.type == "assistant",
-                  let usage = message.message?.usage else {
+                  let record = try? JSONDecoder().decode(ClaudeCodeJsonlRecord.self, from: data),
+                  record.type == "assistant",
+                  let usage = record.message?.usage else {
                 return
             }
             lastUsage = usage
-            lastModel = message.message?.model
+            lastModel = record.message?.model
         }
 
         guard let usage = lastUsage else {

@@ -55,22 +55,27 @@ final class TerminalActivator: TerminalActivating {
     /// 激活指定 PID 对应的终端窗口
     func activateTerminal(forPID pid: Int) {
         let terminal = TerminalApp.detect(forPID: pid)
-        let tty = ttyPath(forPID: pid)
+        let tty = ttyPath(forPID: pid) ?? parentTTYPath(forPID: pid)
+        logger.info("Activating terminal for PID \(pid), terminal=\(terminal.rawValue, privacy: .public), tty=\(tty ?? "nil", privacy: .public)")
 
         switch terminal {
         case .terminal:
             if let tty, activateTerminalTab(tty: tty) {
                 return
             }
-            activateViaAppleScript(appName: "Terminal", pid: pid)
+            activateApplication(appName: "Terminal", pid: pid)
         case .iterm:
             if let tty, activateITermSession(tty: tty) {
                 return
             }
-            activateViaAppleScript(appName: "iTerm2", pid: pid)
+            if activateApplication(appName: "iTerm2", pid: pid) {
+                return
+            }
+            activateApplication(appName: "iTerm", pid: pid)
         case .warp:
             // Warp 不支持 AppleScript，回退到复制命令
-            copyToClipboard(" Claude Code 需要确认 (PID \(pid))")
+            _ = activateApplication(appName: "Warp", pid: pid)
+            copyToClipboard("Claude Code 需要确认 (PID \(pid))")
             logger.info("Warp detected: copied prompt to clipboard")
         case .unknown:
             if let tty, activateITermSession(tty: tty) {
@@ -79,7 +84,13 @@ final class TerminalActivator: TerminalActivating {
             if let tty, activateTerminalTab(tty: tty) {
                 return
             }
-            activateViaAppleScript(appName: "Terminal", pid: pid)
+            if activateApplication(appName: "iTerm2", pid: pid) {
+                return
+            }
+            if activateApplication(appName: "iTerm", pid: pid) {
+                return
+            }
+            activateApplication(appName: "Terminal", pid: pid)
         }
     }
 
@@ -92,6 +103,34 @@ final class TerminalActivator: TerminalActivating {
             return output
         }
         return "/dev/\(output)"
+    }
+
+    private func parentTTYPath(forPID pid: Int) -> String? {
+        var currentPID = pid
+        var visited = Set<Int>()
+
+        for _ in 0..<20 {
+            guard currentPID > 1, !visited.contains(currentPID) else { break }
+            visited.insert(currentPID)
+
+            let output = Self.runCommand(
+                "/bin/ps",
+                arguments: ["-p", "\(currentPID)", "-o", "pid=,ppid=,tty="]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !output.isEmpty else { break }
+            let parts = output.split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 3, let parentPID = Int(parts[1]) else { break }
+
+            let tty = String(parts[2])
+            if !tty.isEmpty, tty != "??" {
+                return tty.hasPrefix("/dev/") ? tty : "/dev/\(tty)"
+            }
+
+            currentPID = parentPID
+        }
+
+        return nil
     }
 
     private func activateITermSession(tty: String) -> Bool {
@@ -137,22 +176,64 @@ final class TerminalActivator: TerminalActivating {
         return executeBoolAppleScript(script)
     }
 
-    private func activateViaAppleScript(appName: String, pid: Int) {
+    @discardableResult
+    private func activateApplication(appName: String, pid: Int) -> Bool {
+        if activateViaAppleScript(appName: appName, pid: pid) {
+            return true
+        }
+
+        if activateViaWorkspace(appName: appName) {
+            return true
+        }
+
+        let result = Self.runCommandResult("/usr/bin/open", arguments: ["-a", appName])
+        if result.exitCode == 0 {
+            return true
+        }
+
+        logger.error("Failed to activate \(appName, privacy: .public): \(result.output, privacy: .public)")
+        copyToClipboard("Claude Code 需要确认 (PID \(pid))")
+        return false
+    }
+
+    private func activateViaAppleScript(appName: String, pid: Int) -> Bool {
         let script = """
         tell application "\(appName)"
             activate
         end tell
         """
 
-        if let nsScript = NSAppleScript(source: script) {
-            var error: NSDictionary?
-            nsScript.executeAndReturnError(&error)
-            if let err = error {
-                logger.error("AppleScript error: \(err.description)")
-                // 回退到复制命令
-                copyToClipboard("Claude Code 需要确认 (PID \(pid))")
-            }
+        guard let nsScript = NSAppleScript(source: script) else {
+            return false
         }
+
+        var error: NSDictionary?
+        nsScript.executeAndReturnError(&error)
+        if let err = error {
+            logger.error("AppleScript error: \(err.description)")
+            return false
+        }
+        return true
+    }
+
+    private func activateViaWorkspace(appName: String) -> Bool {
+        let normalized = appName.lowercased()
+        let aliases: Set<String>
+        switch normalized {
+        case "iterm", "iterm2":
+            aliases = ["iterm", "iterm2"]
+        default:
+            aliases = [normalized]
+        }
+
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { runningApp in
+            let name = runningApp.localizedName?.lowercased()
+            return name.map { aliases.contains($0) } ?? false
+        }) else {
+            return false
+        }
+
+        return app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     }
 
     private func executeBoolAppleScript(_ script: String) -> Bool {
@@ -175,22 +256,30 @@ final class TerminalActivator: TerminalActivating {
     }
 
     private static func runCommand(_ launchPath: String, arguments: [String]) -> String {
+        runCommandResult(launchPath, arguments: arguments).output
+    }
+
+    private static func runCommandResult(_ launchPath: String, arguments: [String]) -> (output: String, exitCode: Int32) {
         let task = Process()
         task.launchPath = launchPath
         task.arguments = arguments
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        task.standardOutput = outputPipe
+        task.standardError = errorPipe
 
         do {
             try task.run()
             task.waitUntilExit()
         } catch {
-            return ""
+            return (error.localizedDescription, -1)
         }
 
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let error = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        let combined = output + error
+        return (String(data: combined, encoding: .utf8) ?? "", task.terminationStatus)
     }
 
     private func copyToClipboard(_ text: String) {

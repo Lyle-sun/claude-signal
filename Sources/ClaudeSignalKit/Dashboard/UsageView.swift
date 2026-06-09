@@ -52,7 +52,7 @@ struct UsageView: View {
                         rangeSummary(s)
                     }
 
-                    if let s = summary, s.unknownModelRatio > 0.5 {
+                    if let s = summary, s.unknownModelRatio > 0 {
                         unknownModelWarning(ratio: s.unknownModelRatio)
                     }
 
@@ -78,8 +78,8 @@ struct UsageView: View {
     }
 
     private var headerBar: some View {
-        ViewThatFits {
-            HStack(alignment: .bottom, spacing: 18) {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 18) {
                 headerTitle
                 Spacer(minLength: 24)
                 rangePicker
@@ -108,6 +108,7 @@ struct UsageView: View {
             Text(language == .chinese ? "范围" : "Range")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
             Picker("范围", selection: $selectedRange) {
                 ForEach(UsageStore.DateRange.allCases, id: \.rawValue) { range in
                     Text(DashboardText.dateRange(range, language: language)).tag(range)
@@ -115,8 +116,9 @@ struct UsageView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(minWidth: 280, maxWidth: 360)
+            .frame(width: 248)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var sectionPicker: some View {
@@ -124,7 +126,6 @@ struct UsageView: View {
             HStack(spacing: 10) {
                 sectionPickerLabel
                 sectionPickerControl
-                Spacer()
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -132,13 +133,14 @@ struct UsageView: View {
                 sectionPickerControl
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 0)
     }
 
     private var sectionPickerLabel: some View {
         Text(language == .chinese ? "视图" : "View")
             .font(.caption)
             .foregroundStyle(.secondary)
+            .frame(width: 34, alignment: .trailing)
     }
 
     private var sectionPickerControl: some View {
@@ -149,7 +151,7 @@ struct UsageView: View {
         }
         .labelsHidden()
         .pickerStyle(.segmented)
-        .frame(minWidth: 280, maxWidth: 360)
+        .frame(width: 244)
     }
 
     @ViewBuilder

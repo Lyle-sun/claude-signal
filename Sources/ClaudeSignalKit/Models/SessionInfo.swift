@@ -147,51 +147,22 @@ struct SessionFile: Decodable {
     let name: String?  // Optional: Claude Code 可能不写入此字段
 }
 
-// MARK: - JSONL Usage Decoding
+// MARK: - Usage Snapshot
 
-struct JsonlMessage: Decodable {
-    let type: String?
-    let message: JsonlMessageContent?
-}
+public struct UsageSnapshot {
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+    public let model: String?
 
-struct JsonlMessageContent: Decodable {
-    let model: String?
-    let usage: UsageData?
-}
+    public init(inputTokens: Int, outputTokens: Int, cacheReadTokens: Int, model: String?) {
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.model = model
+    }
 
-struct UsageSnapshot {
-    let inputTokens: Int
-    let outputTokens: Int
-    let cacheReadTokens: Int
-    let model: String?
-
-    var contextTokens: Int {
+    public var contextTokens: Int {
         inputTokens + cacheReadTokens
-    }
-}
-
-struct UsageData: Decodable {
-    let inputTokens: Int?
-    let cacheReadInputTokens: Int?
-    let outputTokens: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case inputTokens = "input_tokens"
-        case cacheReadInputTokens = "cache_read_input_tokens"
-        case outputTokens = "output_tokens"
-    }
-
-    /// 总 context token 数（不含 output_tokens）
-    var totalContextTokens: Int {
-        (inputTokens ?? 0) + (cacheReadInputTokens ?? 0)
-    }
-
-    var snapshotTokens: UsageSnapshot {
-        UsageSnapshot(
-            inputTokens: inputTokens ?? 0,
-            outputTokens: outputTokens ?? 0,
-            cacheReadTokens: cacheReadInputTokens ?? 0,
-            model: nil
-        )
     }
 }

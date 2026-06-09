@@ -3,8 +3,6 @@ import SwiftUI
 /// 会话卡片视图 — 视觉层级：主信息 / 当前轮用量 / context 进度
 struct SessionCardView: View {
     let session: SessionInfo
-    let terminalActivator: TerminalActivating
-    @State private var isHoveringTerminalButton = false
     @AppStorage("dashboardLanguage") private var dashboardLanguageRawValue = DashboardLanguage.chinese.rawValue
 
     private var language: DashboardLanguage {
@@ -47,7 +45,6 @@ struct SessionCardView: View {
 
             Spacer(minLength: 8)
 
-            terminalButton
             statusBadge
         }
     }
@@ -129,33 +126,6 @@ struct SessionCardView: View {
             .padding(.vertical, 2)
             .background(Color(NSColor.controlBackgroundColor).opacity(0.75))
             .clipShape(RoundedRectangle(cornerRadius: 5))
-    }
-
-    private var terminalButton: some View {
-        Button {
-            terminalActivator.activateTerminal(forPID: session.pid)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "terminal")
-                    .font(.system(size: 11, weight: .medium))
-                Text(language == .chinese ? "会话定位" : "Locate")
-                    .font(.caption2)
-            }
-            .foregroundStyle(isHoveringTerminalButton ? .primary : Color.accentColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(NSColor.controlAccentColor).opacity(isHoveringTerminalButton ? 0.16 : 0.09))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.accentColor.opacity(isHoveringTerminalButton ? 0.38 : 0.24), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .help(language == .chinese ? "定位此会话所在的终端" : "Locate this session's terminal")
-        .onHover { isHoveringTerminalButton = $0 }
     }
 
     // MARK: - Status Badge

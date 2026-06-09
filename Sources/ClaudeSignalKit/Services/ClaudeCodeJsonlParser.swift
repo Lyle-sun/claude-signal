@@ -86,7 +86,7 @@ public struct ClaudeCodeJsonlParser {
             }
 
             do {
-                let obj = try JSONDecoder().decode(JsonlTopLevel.self, from: lineData)
+                let obj = try JSONDecoder().decode(ClaudeCodeJsonlRecord.self, from: lineData)
 
                 // 只处理 assistant 类型且有 usage 的消息
                 guard obj.type == "assistant",
@@ -123,37 +123,5 @@ public struct ClaudeCodeJsonlParser {
         }
 
         return (results, fileSize, errorCount)
-    }
-}
-
-// MARK: - JSONL Decoding Models
-
-/// jsonl 顶层对象（比 ContextMonitor 的 JsonlMessage 更完整）
-struct JsonlTopLevel: Decodable {
-    let type: String?
-    let sessionId: String?
-    let timestamp: String?
-    let cwd: String?
-    let message: JsonlTopLevelMessage?
-}
-
-/// jsonl 中 assistant 消息的 message 字段
-struct JsonlTopLevelMessage: Decodable {
-    let model: String?
-    let usage: JsonlTopLevelUsage?
-}
-
-/// jsonl 中 assistant 消息的 usage 字段
-struct JsonlTopLevelUsage: Decodable {
-    let inputTokens: Int?
-    let cacheReadInputTokens: Int?
-    let outputTokens: Int?
-    let cacheCreationInputTokens: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case inputTokens = "input_tokens"
-        case cacheReadInputTokens = "cache_read_input_tokens"
-        case outputTokens = "output_tokens"
-        case cacheCreationInputTokens = "cache_creation_input_tokens"
     }
 }

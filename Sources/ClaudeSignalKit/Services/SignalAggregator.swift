@@ -22,12 +22,7 @@ final class SignalAggregator: ObservableObject {
 
     /// 是否检测到任何数据源安装
     var anySourceInstalled: Bool {
-        sources.contains { source in
-            if let monitor = source as? SessionMonitoring {
-                return monitor.isInstalled
-            }
-            return true
-        }
+        sources.contains(where: \.isInstalled)
     }
 
     /// 刷新所有会话状态
@@ -68,12 +63,6 @@ final class SignalAggregator: ObservableObject {
                     allSessions[i].lastOutputTokens = snapshot.outputTokens
                     allSessions[i].lastCacheReadTokens = snapshot.cacheReadTokens
                     allSessions[i].modelName = snapshot.model
-                } else if let tokens = source?.fetchContextTokens(
-                    sessionId: allSessions[i].sessionId,
-                    cwd: allSessions[i].cwd
-                ) {
-                    allSessions[i].contextTokens = tokens
-                    allSessions[i].lastKnownTokens = tokens
                 } else if let last = allSessions[i].lastKnownTokens {
                     allSessions[i].contextTokens = last
                 }

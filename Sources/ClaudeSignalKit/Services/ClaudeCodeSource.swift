@@ -7,6 +7,7 @@ final class ClaudeCodeSource: SessionSource {
     let displayName = "Claude Code"
     let systemImageName = "terminal"
     let contextWindowLimit = 200_000
+    var isInstalled: Bool { sessionMonitor.isInstalled }
 
     private let sessionMonitor: SessionMonitor
     private let contextMonitor: ContextMonitor
@@ -21,10 +22,6 @@ final class ClaudeCodeSource: SessionSource {
 
     func fetchSessions() -> [SessionInfo] {
         sessionMonitor.fetchSessions()
-    }
-
-    func fetchContextTokens(sessionId: String, cwd: String) -> Int? {
-        fetchLatestUsageSnapshot(sessionId: sessionId, cwd: cwd)?.contextTokens
     }
 
     func fetchLatestUsageSnapshot(sessionId: String, cwd: String) -> UsageSnapshot? {

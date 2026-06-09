@@ -15,14 +15,14 @@ final class DashboardWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - Window Lifecycle
 
-    func openWindow(with aggregator: SignalAggregator, terminalActivator: TerminalActivating, usageStore: UsageStore? = nil) {
+    func openWindow(with aggregator: SignalAggregator, usageStore: UsageStore? = nil) {
         if let existingWindow = window {
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let contentView = DashboardView(aggregator: aggregator, terminalActivator: terminalActivator, usageStore: usageStore)
+        let contentView = DashboardView(aggregator: aggregator, usageStore: usageStore)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]

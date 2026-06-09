@@ -48,7 +48,7 @@ public enum SignalState: Int, Comparable {
         case .confirming:  return NSColor.systemRed
         case .warning:     return NSColor.systemYellow
         case .critical:    return NSColor.systemPurple
-        case .error:       return NSColor(calibratedRed: 0.92, green: 0.89, blue: 0.85, alpha: 0.63)
+        case .error:       return NSColor.systemOrange
         }
     }
 
@@ -78,7 +78,7 @@ public enum SignalState: Int, Comparable {
         case .running:     return "🟢"
         case .confirming:  return "🔴"
         case .warning:     return "🟡"
-        case .critical:    return "🔴"
+        case .critical:    return "🟣"
         case .error:       return "⚠️"
         }
     }

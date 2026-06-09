@@ -16,11 +16,11 @@ protocol SessionSource: AnyObject {
     /// Context 窗口上限（token 数）
     var contextWindowLimit: Int { get }
 
+    /// 数据源是否可用（例如 ~/.claude 是否存在）
+    var isInstalled: Bool { get }
+
     /// 获取所有活跃会话
     func fetchSessions() -> [SessionInfo]
-
-    /// 获取指定会话的 context token 数
-    func fetchContextTokens(sessionId: String, cwd: String) -> Int?
 
     /// 获取指定会话最后一轮 assistant usage 快照
     func fetchLatestUsageSnapshot(sessionId: String, cwd: String) -> UsageSnapshot?
