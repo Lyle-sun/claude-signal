@@ -27,3 +27,10 @@ Package.resolved
 # Secrets
 .env
 *.env
+
+# Dev tool configs
+CLAUDE.md
+AGENTS.md
+
+# Screenshots (hosted in GitHub Releases)
+docs/screenshots/
