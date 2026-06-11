@@ -81,17 +81,10 @@ struct UsageView: View {
     }
 
     private var headerBar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 18) {
-                headerTitle
-                Spacer(minLength: 24)
-                rangePicker
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                headerTitle
-                rangePicker
-            }
+        HStack(alignment: .top, spacing: 18) {
+            headerTitle
+            Spacer(minLength: 12)
+            rangePicker
         }
     }
 
@@ -125,16 +118,9 @@ struct UsageView: View {
     }
 
     private var sectionPicker: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                sectionPickerLabel
-                sectionPickerControl
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                sectionPickerLabel
-                sectionPickerControl
-            }
+        HStack(spacing: 10) {
+            sectionPickerLabel
+            sectionPickerControl
         }
         .padding(.vertical, 0)
     }
@@ -256,7 +242,7 @@ struct UsageView: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .foregroundStyle(color)
-                .fontWeight(.medium)
+                .font(.system(size: 11, weight: .medium))
                 .monospacedDigit()
         }
         .font(.caption)
@@ -610,23 +596,12 @@ struct UsageView: View {
                 .foregroundStyle(.secondary)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 12) {
-                    if !modelUsage.isEmpty {
-                        modelPreview
-                    }
-                    if !projectUsage.isEmpty {
-                        projectPreview
-                    }
+            HStack(alignment: .top, spacing: 12) {
+                if !modelUsage.isEmpty {
+                    modelPreview
                 }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    if !modelUsage.isEmpty {
-                        modelPreview
-                    }
-                    if !projectUsage.isEmpty {
-                        projectPreview
-                    }
+                if !projectUsage.isEmpty {
+                    projectPreview
                 }
             }
         }

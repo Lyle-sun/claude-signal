@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 仪表盘主视图 — Phase B: NavigationSplitView + 会话/用量/设置
+/// 仪表盘主视图 — 自定义侧边栏 + 内容区（兼容 macOS 12）
 @MainActor
 struct DashboardView: View {
     @ObservedObject var aggregator: SignalAggregator
@@ -45,36 +45,61 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            // Sidebar
-            List(Tab.allCases, selection: $selectedTab) { tab in
-                Label(tab.title(language: language), systemImage: tab.icon)
-                    .tag(tab)
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 160)
-        } detail: {
-            // Detail
-            switch selectedTab {
-            case .sessions:
-                sessionsView
-            case .today:
-                if let usageStore {
-                    TodayUsageView(store: usageStore)
-                } else {
-                    usageUnavailableView
-                }
-            case .usage:
-                if let usageStore {
-                    UsageView(store: usageStore)
-                } else {
-                    usageUnavailableView
-                }
-            case .settings:
-                SettingsView()
-            }
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 160)
+
+            Divider()
+
+            detailView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 600, minHeight: 400)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Tab.allCases) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Label(tab.title(language: language), systemImage: tab.icon)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(selectedTab == tab ? Color.accentColor : Color.clear)
+                        .foregroundColor(selectedTab == tab ? .white : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+        }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.7))
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch selectedTab {
+        case .sessions:
+            sessionsView
+        case .today:
+            if let usageStore {
+                TodayUsageView(store: usageStore)
+            } else {
+                usageUnavailableView
+            }
+        case .usage:
+            if let usageStore {
+                UsageView(store: usageStore)
+            } else {
+                usageUnavailableView
+            }
+        case .settings:
+            SettingsView()
+        }
     }
 
     private var usageUnavailableView: some View {
@@ -133,7 +158,6 @@ struct DashboardView: View {
             // 会话列表
             List(aggregator.sessions.sorted(by: sessionSortOrder)) { session in
                 SessionCardView(session: session)
-                    .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12))
                     .listRowBackground(Color.clear)
             }

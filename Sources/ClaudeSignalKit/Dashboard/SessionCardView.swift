@@ -38,7 +38,8 @@ struct SessionCardView: View {
     private var headerRow: some View {
         HStack(spacing: 8) {
             Text(session.projectName)
-                .font(.system(.body, weight: .semibold))
+                .font(.body)
+                .fontWeight(.semibold)
                 .lineLimit(1)
 
             modelBadge
@@ -74,26 +75,16 @@ struct SessionCardView: View {
     }
 
     private var metricsRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 14) {
-                metricItem(icon: "gauge.with.dots.needle.67percent", label: "Context", value: session.contextPercentDescription)
-                metricItem(icon: "arrow.down.circle", label: "Input", value: formatTokens(session.lastInputTokens))
-                metricItem(icon: "arrow.up.circle", label: "Output", value: formatTokens(session.lastOutputTokens))
-                metricItem(icon: "bolt.horizontal.circle", label: "Cached", value: formatTokens(session.lastCacheReadTokens))
-                metricItem(icon: "clock", label: language == .chinese ? "时长" : "Duration", value: durationText)
-            }
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 112), spacing: 10, alignment: .leading)],
-                alignment: .leading,
-                spacing: 5
-            ) {
-                metricItem(icon: "gauge.with.dots.needle.67percent", label: "Context", value: session.contextPercentDescription)
-                metricItem(icon: "arrow.down.circle", label: "Input", value: formatTokens(session.lastInputTokens))
-                metricItem(icon: "arrow.up.circle", label: "Output", value: formatTokens(session.lastOutputTokens))
-                metricItem(icon: "bolt.horizontal.circle", label: "Cached", value: formatTokens(session.lastCacheReadTokens))
-                metricItem(icon: "clock", label: language == .chinese ? "时长" : "Duration", value: durationText)
-            }
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 112), spacing: 10, alignment: .leading)],
+            alignment: .leading,
+            spacing: 5
+        ) {
+            metricItem(icon: "gauge.with.dots.needle.67percent", label: "Context", value: session.contextPercentDescription)
+            metricItem(icon: "arrow.down.circle", label: "Input", value: formatTokens(session.lastInputTokens))
+            metricItem(icon: "arrow.up.circle", label: "Output", value: formatTokens(session.lastOutputTokens))
+            metricItem(icon: "bolt.horizontal.circle", label: "Cached", value: formatTokens(session.lastCacheReadTokens))
+            metricItem(icon: "clock", label: language == .chinese ? "时长" : "Duration", value: durationText)
         }
     }
 

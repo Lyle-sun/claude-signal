@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "ClaudeSignal",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v12)],
     dependencies: [],
     targets: [
         // 核心逻辑库（可被测试目标依赖）
