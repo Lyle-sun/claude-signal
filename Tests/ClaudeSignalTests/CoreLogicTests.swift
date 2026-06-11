@@ -336,6 +336,55 @@ doTestJsonlParser: do {
     // 但 parseFile 返回的是当前文件大小，所以这里只要不出错就行
 }
 
+// MARK: - Indexer
+
+doTestIndexerTracksStatePerJsonlFile: do {
+    let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("claude-signal-test-indexer-\(UUID().uuidString)")
+    let claudeDir = tmpDir.appendingPathComponent(".claude")
+    let projectDir = claudeDir.appendingPathComponent("projects").appendingPathComponent("-Users-lyle")
+    try? FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    let firstJsonl = projectDir.appendingPathComponent("session-a.jsonl")
+    let secondJsonl = projectDir.appendingPathComponent("session-b.jsonl")
+
+    try """
+    {"type":"assistant","sessionId":"session-a","timestamp":"2026-06-11T01:00:00.000Z","cwd":"/Users/lyle","message":{"model":"glm-5.1","usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":1}}}
+    """.write(to: firstJsonl, atomically: true, encoding: .utf8)
+
+    try """
+    {"type":"assistant","sessionId":"session-b","timestamp":"2026-06-11T01:01:00.000Z","cwd":"/Users/lyle","message":{"model":"glm-5.1","usage":{"input_tokens":200,"output_tokens":20,"cache_read_input_tokens":2}}}
+    """.write(to: secondJsonl, atomically: true, encoding: .utf8)
+
+    let dbURL = tmpDir.appendingPathComponent("usage.sqlite")
+    let indexer = Indexer(databaseURL: dbURL, claudeDir: claudeDir)
+
+    let firstRun = indexer.runIncrementalIndex()
+    assertEqual(firstRun.messagesIndexed, 2, "indexes both jsonl files in same project dir")
+
+    let secondRun = indexer.runIncrementalIndex()
+    assertEqual(secondRun.messagesIndexed, 0, "second incremental run does not duplicate unchanged files")
+
+    let db = Database(databaseURL: dbURL)
+    assertTrue(db.open(), "open indexer test database")
+
+    var totalTokens = 0
+    var messages = 0
+    var sessions = 0
+    db.query(
+        "SELECT SUM(input_tokens + output_tokens + cache_read_tokens), SUM(message_count), COUNT(DISTINCT session_id) FROM daily_usage WHERE date = '2026-06-11'"
+    ) { stmt in
+        totalTokens = Database.intColumn(stmt, 0)
+        messages = Database.intColumn(stmt, 1)
+        sessions = Database.intColumn(stmt, 2)
+    }
+
+    assertEqual(totalTokens, 333, "daily total includes both sessions once")
+    assertEqual(messages, 2, "daily message count includes both sessions once")
+    assertEqual(sessions, 2, "daily sessions include both jsonl files")
+    db.close()
+}
+
 // MARK: - UsageStore + Database Integration
 
 doTestUsageStoreIntegration: do {

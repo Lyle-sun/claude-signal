@@ -75,6 +75,9 @@ struct UsageView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear { loadData() }
         .onChange(of: selectedRange) { _ in loadData() }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+            loadData()
+        }
     }
 
     private var headerBar: some View {
@@ -1016,6 +1019,9 @@ struct TodayUsageView: View {
             .padding(20)
         }
         .onAppear { loadData() }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+            loadData()
+        }
     }
 
     private var header: some View {

@@ -55,6 +55,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.aggregator.refresh()
                 self.lighthouse?.updateIcon()
                 self.lighthouse?.handleStateChange()
+                self.indexerCoordinator.startIndexing()
             }
         }
     }

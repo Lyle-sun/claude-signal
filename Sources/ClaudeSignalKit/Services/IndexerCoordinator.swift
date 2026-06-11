@@ -28,6 +28,10 @@ public final class IndexerCoordinator {
     /// 用量数据读取层
     public var usageStore: UsageStore?
 
+    /// App 会频繁请求索引，这里统一节流，避免无谓 I/O。
+    private let minimumIndexInterval: TimeInterval = 60
+    private var lastIndexStartedAt: Date?
+
     public init(claudeDir: URL? = nil) {
         // 数据库路径：~/Library/Application Support/ClaudeSignal/usage.sqlite
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -57,12 +61,19 @@ public final class IndexerCoordinator {
     }
 
     /// 启动增量索引（后台异步）
-    public func startIndexing() {
-        guard case .idle = status else {
-            logger.info("Indexing already in progress or recently completed")
+    public func startIndexing(force: Bool = false) {
+        if case .indexing = status {
+            logger.info("Indexing already in progress")
             return
         }
 
+        if !force,
+           let lastIndexStartedAt,
+           Date().timeIntervalSince(lastIndexStartedAt) < minimumIndexInterval {
+            return
+        }
+
+        lastIndexStartedAt = Date()
         status = .indexing(progress: 0)
 
         indexingQueue.async { [weak self] in
@@ -93,6 +104,6 @@ public final class IndexerCoordinator {
             db.close()
         }
 
-        startIndexing()
+        startIndexing(force: true)
     }
 }

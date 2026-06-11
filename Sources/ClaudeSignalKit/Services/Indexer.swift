@@ -168,7 +168,7 @@ final public class Indexer {
 
     /// 索引单个 jsonl 文件（增量）
     private func indexJsonlFile(_ fileURL: URL, projectSlug: String) -> (messages: Int, errors: Int) {
-        let _ = fileURL.deletingPathExtension().lastPathComponent
+        let indexKey = indexStateKey(projectSlug: projectSlug, fileURL: fileURL)
 
         // 获取文件属性
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
@@ -181,7 +181,7 @@ final public class Indexer {
         let fileMtime = modDate.timeIntervalSince1970
 
         // 查询上次索引状态
-        let lastIndexState = getIndexState(projectSlug: projectSlug)
+        let lastIndexState = getIndexState(indexKey: indexKey)
         let lastOffset = lastIndexState?.byteOffset ?? 0
         let lastSize = lastIndexState?.fileSize ?? 0
         let lastMtime = lastIndexState?.mtime ?? 0
@@ -193,7 +193,7 @@ final public class Indexer {
 
         // 文件截断检测：如果文件变小了，全量重索引
         var effectiveOffset = lastOffset
-        if fileSize < lastSize {
+        if lastIndexState == nil || fileSize < lastSize {
             logger.info("File truncated, resetting offset: \(fileURL.lastPathComponent)")
             effectiveOffset = 0
         }
@@ -207,7 +207,7 @@ final public class Indexer {
         guard !results.isEmpty || errorCount > 0 else {
             // 无新数据，但更新索引状态
             updateIndexState(
-                projectSlug: projectSlug,
+                indexKey: indexKey,
                 byteOffset: bytesProcessed,
                 fileSize: fileSize,
                 mtime: fileMtime,
@@ -221,6 +221,10 @@ final public class Indexer {
         do {
             try database.inTransaction {
                 var batchCount = 0
+
+                if effectiveOffset == 0 {
+                    resetDailyUsage(for: results)
+                }
 
                 for usage in results {
                     // 更新 sessions 表
@@ -241,7 +245,7 @@ final public class Indexer {
 
                 // 更新索引状态
                 updateIndexState(
-                    projectSlug: projectSlug,
+                    indexKey: indexKey,
                     byteOffset: bytesProcessed,
                     fileSize: fileSize,
                     mtime: fileMtime,
@@ -254,7 +258,7 @@ final public class Indexer {
 
             // 记录错误到 index_state
             updateIndexState(
-                projectSlug: projectSlug,
+                indexKey: indexKey,
                 byteOffset: lastOffset, // 不更新 offset，下次重试
                 fileSize: lastSize,
                 mtime: lastMtime,
@@ -273,12 +277,16 @@ final public class Indexer {
         let mtime: TimeInterval
     }
 
-    private func getIndexState(projectSlug: String) -> IndexStateRecord? {
+    private func indexStateKey(projectSlug: String, fileURL: URL) -> String {
+        "\(projectSlug)/\(fileURL.lastPathComponent)"
+    }
+
+    private func getIndexState(indexKey: String) -> IndexStateRecord? {
         var result: IndexStateRecord?
 
         database.query(
             "SELECT last_indexed_byte_offset, last_file_size, last_file_mtime FROM index_state WHERE project_slug = ?",
-            [projectSlug]
+            [indexKey]
         ) { stmt in
             result = IndexStateRecord(
                 byteOffset: UInt64(Database.intColumn(stmt, 0)),
@@ -291,7 +299,7 @@ final public class Indexer {
     }
 
     private func updateIndexState(
-        projectSlug: String,
+        indexKey: String,
         byteOffset: UInt64,
         fileSize: UInt64,
         mtime: TimeInterval,
@@ -303,7 +311,7 @@ final public class Indexer {
                 (project_slug, source, last_indexed_byte_offset, last_file_size, last_file_mtime, last_error)
             VALUES (?, 'claude-code', ?, ?, ?, ?)
             """,
-            [projectSlug, Int(byteOffset), Int(fileSize), mtime, error ?? ""]
+            [indexKey, Int(byteOffset), Int(fileSize), mtime, error ?? ""]
         )
     }
 
@@ -321,6 +329,16 @@ final public class Indexer {
             """,
             [usage.sessionId, usage.projectSlug, usage.model, startTime as Any, usage.cwd]
         )
+    }
+
+    private func resetDailyUsage(for usages: [ClaudeCodeJsonlParser.ParsedUsage]) {
+        let sessionIds = Set(usages.map(\.sessionId))
+        for sessionId in sessionIds {
+            database.executeWithParams(
+                "DELETE FROM daily_usage WHERE source = 'claude-code' AND session_id = ?",
+                [sessionId]
+            )
+        }
     }
 
     private func upsertDailyUsage(usage: ClaudeCodeJsonlParser.ParsedUsage) {
